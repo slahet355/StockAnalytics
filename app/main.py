@@ -27,6 +27,7 @@ async def startup_event():
     # Initialize DB and Redis then start background tasks
     await db.init_db()
     await cache.init_redis()
+    asyncio.create_task(ws_module.redis_subscriber())
     asyncio.create_task(ws_module.background_publisher())
 
 
