@@ -1,6 +1,5 @@
 import asyncio
 import json
-import random
 from fastapi import WebSocket
 
 clients = set()
@@ -33,22 +32,34 @@ async def broadcast(message: dict):
 
 
 async def background_publisher():
-    # Simple demo publisher that sends random price updates every second
+    """Publisher that fetches from real APIs and broadcasts updates."""
     from ..models import PricePoint
     from ..db import async_session
+    from ..services.fetcher import gather_price_sources
+    
     while True:
-        msg = {
-            "type": "price_update",
-            "symbol": "BTC-USD",
-            "price": round(20000 + random.random() * 1000, 2)
-        }
-        await broadcast(msg)
-        # try to persist to DB (best-effort)
         try:
-            async with async_session() as session:
-                price = PricePoint(symbol=msg["symbol"], price=msg["price"], source="demo")
-                session.add(price)
-                await session.commit()
-        except Exception:
-            pass
-        await asyncio.sleep(1)
+            # Fetch from multiple real sources concurrently
+            results = await gather_price_sources()
+            
+            for msg in results:
+                await broadcast(msg)
+                
+                # Persist price updates to DB (not sentiment)
+                if msg.get("type") == "price_update":
+                    try:
+                        async with async_session() as session:
+                            price = PricePoint(
+                                symbol=msg["symbol"],
+                                price=msg["price"],
+                                source=msg.get("source", "unknown")
+                            )
+                            session.add(price)
+                            await session.commit()
+                    except Exception as e:
+                        print(f"DB persist error: {e}")
+        except Exception as e:
+            print(f"Publisher error: {e}")
+        
+        # Fetch every 10 seconds to respect API rate limits
+        await asyncio.sleep(10)
