@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 import asyncio
 from .api import ws as ws_module
 from . import db, cache
-from .api import prices as prices_module
+from .api import prices as prices_module, cache as cache_module
 
 app = FastAPI(title="StockAnalytics")
 
@@ -15,6 +15,7 @@ templates = Jinja2Templates(directory="app/templates")
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 app.include_router(prices_module.router, prefix="/api")
+app.include_router(cache_module.router, prefix="/api")
 
 
 @app.get("/", response_class=HTMLResponse)
